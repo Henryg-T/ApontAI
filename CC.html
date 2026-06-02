@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="stylesheet" href="css/CC.css">
+  <title>ApontaAí — Criar conta</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="index2.html" class="logo"><span class="logo-dot"></span> ApontaAí</a>
+  </header>
+
+  <div class="card">
+    <div>
+      <div class="card-title">Criar conta</div>
+      <div class="card-sub">Preencha os dados para começar</div>
+    </div>
+
+    <div class="field">
+      <label>Nome</label>
+      <input type="text" id="nomeInput" placeholder="Seu nome completo"/>
+    </div>
+
+    <div class="field">
+      <label>E-mail</label>
+      <input type="email" id="emailInput" placeholder="seu@email.com"/>
+    </div>
+
+    <div class="field">
+      <label>Senha</label>
+      <div class="input-wrap">
+        <input type="password" placeholder="••••••••" id="senhaInput"/>
+        <button class="eye-btn" id="olhoBtn" type="button"></button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Confirmar senha</label>
+      <div class="input-wrap">
+        <input type="password" placeholder="••••••••" id="senhaConfInput"/>
+        <button class="eye-btn" id="olhoBtnConf" type="button"></button>
+      </div>
+    </div>
+
+    <div id="msgErro" style="color:#e53e3e;font-size:12px;min-height:16px;"></div>
+    <div id="msgSucesso" style="color:#38a169;font-size:12px;min-height:16px;"></div>
+
+    <button class="btn-primary" id="btnCriarConta">Criar conta</button>
+
+    <div class="divider"><span>ou</span></div>
+
+    <div class="footer-link">Já tem uma conta? <a href="cadastro.html">Entrar</a></div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/CC.js"></script>
+
+</body>
+</html>
