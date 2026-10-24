@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GestureSlide</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue:     #2563eb;
+      --blue-lt:  #eff6ff;
+      --blue-mid: #dbeafe;
+      --blue-bdr: #bfdbfe;
+      --text:     #1e3a5f;
+      --muted:    #64748b;
+      --white:    #ffffff;
+      --bg:       #f0f6ff;
+      --green:    #22c55e;
+      --red:      #ef4444;
+      --radius:   14px;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ── SIDEBAR ─────────────────────────────── */
+    .sidebar {
+      width: 240px;
+      background: var(--white);
+      border-right: 1px solid var(--blue-bdr);
+      display: flex;
+      flex-direction: column;
+      padding: 20px 14px;
+      gap: 10px;
+      flex-shrink: 0;
+      overflow-y: auto;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--blue);
+      padding: 4px 0 14px;
+      border-bottom: 1px solid var(--blue-mid);
+    }
+    .logo-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--blue);
+    }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 6px 4px 2px;
+    }
+
+    .upload-zone {
+      border: 2px dashed var(--blue-bdr);
+      border-radius: var(--radius);
+      padding: 18px 12px;
+      text-align: center;
+      cursor: pointer;
+      transition: all .2s;
+      background: var(--blue-lt);
+    }
+    .upload-zone:hover { border-color: var(--blue); background: #dbeafe; }
+    .upload-zone p { font-size: 13px; color: var(--blue); font-weight: 700; margin-bottom: 4px; }
+    .upload-zone span { font-size: 11px; color: var(--muted); }
+    #fileInput { display: none; }
+
+    .btn {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1.5px solid var(--blue-bdr);
+      background: var(--blue-lt);
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      transition: all .18s;
+      font-family: inherit;
+    }
+    .btn:hover { background: var(--blue-mid); border-color: var(--blue); }
+    .btn.active { background: var(--blue); color: white; border-color: var(--blue); }
+    .btn.danger { border-color: #fecaca; background: #fff5f5; color: var(--red); }
+    .btn.danger:hover { background: #fee2e2; }
+    .btn-icon { font-size: 16px; line-height: 1; }
+
+    .slide-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 220px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+    .slide-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 9px;
+      cursor: pointer;
+      border: 1.5px solid transparent;
+      transition: all .15s;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .slide-item:hover { background: var(--blue-lt); color: var(--text); }
+    .slide-item.active { background: var(--blue-lt); border-color: var(--blue-bdr); color: var(--blue); font-weight: 700; }
+    .slide-item .num {
+      width: 22px; height: 22px;
+      border-radius: 6px;
+      background: var(--blue-mid);
+      color: var(--blue);
+      font-size: 10px;
+      font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .slide-item.active .num { background: var(--blue); color: white; }
+
+    .status-bar {
+      margin-top: auto;
+      padding: 10px 12px;
+      background: var(--blue-lt);
+      border-radius: 10px;
+      border: 1px solid var(--blue-bdr);
+    }
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .status-row:last-child { margin-bottom: 0; }
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #cbd5e1;
+      flex-shrink: 0;
+    }
+    .dot.on { background: var(--green); animation: blink 1.4s ease-in-out infinite; }
+    .dot.warn { background: #f59e0b; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ── MAIN STAGE ──────────────────────────── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .topbar {
+      background: var(--white);
+      border-bottom: 1px solid var(--blue-bdr);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .gesture-pill {
+      padding: 5px 16px;
+      background: var(--blue-lt);
+      border: 1.5px solid var(--blue-bdr);
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--blue);
+      transition: all .3s;
+      white-space: nowrap;
+    }
+    .gesture-pill.flash {
+      background: var(--blue);
+      color: white;
+      border-color: var(--blue);
+    }
+
+    .mode-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      display: none;
+    }
+    .mode-badge.draw { background: #fdf4ff; border: 1.5px solid #e9d5ff; color: #7c3aed; display: inline-block; }
+    .mode-badge.laser { background: #fff1f2; border: 1.5px solid #fecdd3; color: #e11d48; display: inline-block; }
+
+    .spacer { flex: 1; }
+
+    .counter {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted);
+      background: var(--blue-lt);
+      padding: 5px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--blue-bdr);
+    }
+
+    /* ── SLIDE STAGE ─────────────────────────── */
+    .stage {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      color: var(--muted);
+    }
+    .empty-icon {
+      width: 72px; height: 72px;
+      border-radius: 20px;
+      background: var(--white);
+      border: 1.5px solid var(--blue-bdr);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 30px;
+    }
+    .empty-state h2 { font-size: 16px; color: var(--text); font-weight: 700; }
+    .empty-state p { font-size: 13px; text-align: center; max-width: 260px; line-height: 1.6; }
+
+    .slide-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 860px;
+      aspect-ratio: 16/9;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(37,99,235,.15);
+      border: 1.5px solid var(--blue-bdr);
+      display: none;
+    }
+    .slide-wrapper.visible { display: block; }
+
+    #slideImg {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #fff;
+      display: block;
+    }
+
+    /* Canvas overlay para desenho e laser */
+    #drawCanvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+    }
+
+    /* Ponto laser */
+    #laserDot {
+      position: absolute;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: rgba(239,68,68,.85);
+      box-shadow: 0 0 8px 3px rgba(239,68,68,.5);
+      transform: translate(-50%,-50%);
+      pointer-events: none;
+      display: none;
+    }
+
+    /* Webcam preview */
+    #camPreview {
+      position: absolute;
+      bottom: 14px;
+      right: 14px;
+      width: 120px;
+      border-radius: 10px;
+      border: 2px solid var(--white);
+      box-shadow: 0 2px 12px rgba(0,0,0,.2);
+      display: none;
+    }
+
+    /* ── CONTROLES INFERIORES ────────────────── */
+    .controls {
+      background: var(--white);
+      border-top: 1px solid var(--blue-bdr);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .ctrl-btn {
+      padding: 8px 18px;
+      border-radius: 10px;
+      border: 1.5px solid var(--blue-bdr);
+      background: var(--blue-lt);
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      transition: all .15s;
+    }
+    .ctrl-btn:hover { background: var(--blue-mid); border-color: var(--blue); }
+    .ctrl-btn:disabled { opacity: .4; cursor: default; }
+    .ctrl-btn.draw { background: #fdf4ff; border-color: #e9d5ff; color: #7c3aed; }
+    .ctrl-btn.draw.active { background: #7c3aed; color: white; border-color: #7c3aed; }
+    .ctrl-btn.laser { background: #fff1f2; border-color: #fecdd3; color: #e11d48; }
+    .ctrl-btn.laser.active { background: #e11d48; color: white; border-color: #e11d48; }
+    .ctrl-btn.clear { background: #f0fdf4; border-color: #bbf7d0; color: #16a34a; }
+    .ctrl-btn.clear:hover { background: #dcfce7; }
+
+    .ctrl-spacer { flex: 1; }
+    .ctrl-counter {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── SIDEBAR ───────────────────────────────── -->
+<aside class="sidebar">
+  <div class="logo"><div class="logo-dot"></div>GestureSlide</div>
+
+  <div class="section-label">Slides</div>
+  <label class="upload-zone" for="fileInput">
+    <p>+ Adicionar slides</p>
+    <span>PNG, JPG, WebP,PPTX</span>
+  </label>
+  <input type="file" id="fileInput" accept="image/*" multiple>
+
+  <div class="slide-list" id="slideList">
+    <div style="font-size:12px;color:var(--muted);padding:4px 8px">Nenhum slide carregado</div>
+  </div>
+
+  <button class="btn danger" onclick="clearSlides()">
+    <span class="btn-icon">🗑️</span> Limpar tudo
+  </button>
+
+  <div class="section-label">Controles</div>
+  <button class="btn" id="btnDraw" onclick="toggleMode('draw')">
+    <span class="btn-icon">✏️</span> Modo desenho
+  </button>
+  <button class="btn" id="btnLaser" onclick="toggleMode('laser')">
+    <span class="btn-icon">🔴</span> Ponteiro laser
+  </button>
+  <button class="btn" onclick="clearCanvas()">
+    <span class="btn-icon">🧹</span> Apagar anotações
+  </button>
+
+  <div class="status-bar">
+    <div class="status-row">
+      <div class="dot" id="dotSocket"></div>
+      <span id="lblSocket">Servidor desconectado</span>
+    </div>
+    <div class="status-row">
+      <div class="dot" id="dotCam"></div>
+      <span id="lblCam">Webcam inativa</span>
+    </div>
+    <div class="status-row">
+      <div class="dot" id="dotPython"></div>
+      <span id="lblPython">Python desconectado</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ── MAIN ──────────────────────────────────── -->
+<div class="main">
+
+  <div class="topbar">
+    <div class="gesture-pill" id="gesturePill">Aguardando gesto...</div>
+    <div class="mode-badge" id="modeBadge"></div>
+    <div class="spacer"></div>
+    <div class="counter" id="topCounter">0 / 0</div>
+    <button class="ctrl-btn" onclick="startCam()" style="padding:6px 14px;font-size:12px">📷 Webcam</button>
+  </div>
+
+  <div class="stage" id="stage">
+
+    <!-- Estado vazio -->
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">🖼️</div>
+      <h2>Nenhum slide carregado</h2>
+      <p>Use o painel lateral para fazer upload das imagens dos seus slides.</p>
+    </div>
+
+    <!-- Slide + canvas -->
+    <div class="slide-wrapper" id="slideWrapper">
+      <img id="slideImg" alt="Slide atual">
+      <canvas id="drawCanvas"></canvas>
+      <div id="laserDot"></div>
+      <video id="camPreview" autoplay muted playsinline></video>
+    </div>
+
+  </div>
+
+  <div class="controls">
+    <button class="ctrl-btn" id="btnPrev" onclick="prevSlide()" disabled>
+      ← Anterior
+    </button>
+    <div class="ctrl-spacer"></div>
+    <div class="ctrl-counter" id="bottomCounter">0 / 0</div>
+    <div class="ctrl-spacer"></div>
+    <button class="ctrl-btn draw" id="ctrlDraw" onclick="toggleMode('draw')">✏️ Desenhar</button>
+    <button class="ctrl-btn laser" id="ctrlLaser" onclick="toggleMode('laser')">🔴 Laser</button>
+    <button class="ctrl-btn clear" onclick="clearCanvas()">🧹 Apagar</button>
+    <button class="ctrl-btn" id="btnNext" onclick="nextSlide()" disabled>
+      Próximo →
+    </button>
+  </div>
+
+</div>
+
+<script>
+// ── Estado ────────────────────────────────────
+const state = {
+  slides: [],
+  current: 0,
+  drawMode: false,
+  laserMode: false,
+  drawing: false,
+  pythonConnected: false,
+};
+
+// ── Canvas ────────────────────────────────────
+const canvas = document.getElementById('drawCanvas');
+const ctx = canvas.getContext('2d');
+ctx.strokeStyle = '#2563eb';
+ctx.lineWidth = 3;
+ctx.lineCap = 'round';
+ctx.lineJoin = 'round';
+
+function resizeCanvas() {
+  const wrapper = document.getElementById('slideWrapper');
+  canvas.width = wrapper.offsetWidth;
+  canvas.height = wrapper.offsetHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+
+// ── Socket.io ─────────────────────────────────
+const socket = io();
+
+socket.on('connect', () => {
+  setDot('dotSocket', 'on', 'Servidor conectado');
+});
+socket.on('disconnect', () => {
+  setDot('dotSocket', '', 'Servidor desconectado');
+  setDot('dotPython', '', 'Python desconectado');
+  state.pythonConnected = false;
+});
+
+// Slides atualizados pelo servidor
+socket.on('slides_updated', (data) => {
+  state.slides = data.slides || [];
+  state.current = data.current || 0;
+  renderSlideList();
+  showSlide(state.current);
+});
+
+// Mudança de slide pelo gesto
+socket.on('slide_change', (data) => {
+  state.current = data.current;
+  showSlide(state.current);
+  flashGesture(state.current > (data.prev ?? state.current - 1) ? '✋ Mão aberta' : '✊ Punho fechado');
+});
+
+// Gesto recebido (para exibir badge)
+socket.on('gesture', (data) => {
+  if (!state.pythonConnected) {
+    state.pythonConnected = true;
+    setDot('dotPython', 'on', 'Python conectado');
+  }
+  const labels = {
+    next: '✋ Próximo slide',
+    prev: '✊ Slide anterior',
+    draw_on: '🤏 Desenho ativo',
+    draw_off: '🤏 Desenho inativo',
+    laser_on: '🔴 Laser ativo',
+    laser_off: '🔴 Laser inativo',
+    clear: '🧹 Canvas limpo',
+  };
+  flashGesture(labels[data.type] || data.type);
+});
+
+// Cursor (posição normalizada 0-1)
+socket.on('cursor', (data) => {
+  moveLaser(data.x, data.y);
+});
+
+// Ponto de desenho
+socket.on('draw_point', (data) => {
+  if (!state.drawMode) return;
+  const w = canvas.width, h = canvas.height;
+  const x = data.x * w, y = data.y * h;
+  if (data.active) {
+    if (!state.drawing) { ctx.beginPath(); ctx.moveTo(x, y); state.drawing = true; }
+    else { ctx.lineTo(x, y); ctx.stroke(); }
+  } else {
+    state.drawing = false;
+  }
+});
+
+// Modo (draw/laser)
+socket.on('mode_change', (data) => {
+  if (data.drawMode !== undefined) applyMode('draw', data.drawMode);
+  if (data.laserMode !== undefined) applyMode('laser', data.laserMode);
+});
+
+// Limpar canvas
+socket.on('clear_canvas', clearCanvas);
+
+// ── Upload ────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const files = Array.from(e.target.files);
+  if (!files.length) return;
+
+  const form = new FormData();
+  files.forEach(f => form.append('slides', f));
+
+  try {
+    const res = await fetch('/upload', { method: 'POST', body: form });
+    const data = await res.json();
+    if (data.success) {
+      state.slides = data.slides;
+      state.current = 0;
+      renderSlideList();
+      showSlide(0);
+    }
+  } catch (err) {
+    console.error('Erro no upload:', err);
+  }
+
+  e.target.value = '';
+});
+
+async function clearSlides() {
+  if (!confirm('Remover todos os slides?')) return;
+  await fetch('/slides', { method: 'DELETE' });
+  state.slides = [];
+  state.current = 0;
+  renderSlideList();
+  showSlide(-1);
+  clearCanvas();
+}
+
+// ── Renderização ──────────────────────────────
+function renderSlideList() {
+  const list = document.getElementById('slideList');
+  if (!state.slides.length) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:4px 8px">Nenhum slide carregado</div>';
+    return;
+  }
+  list.innerHTML = state.slides.map((s, i) => `
+    <div class="slide-item${i === state.current ? ' active' : ''}" onclick="goSlide(${i})">
+      <div class="num">${i + 1}</div>
+      <span>Slide ${i + 1}</span>
+    </div>
+  `).join('');
+}
+
+function showSlide(idx) {
+  const wrapper = document.getElementById('slideWrapper');
+  const empty = document.getElementById('emptyState');
+
+  if (idx < 0 || !state.slides.length) {
+    wrapper.classList.remove('visible');
+    empty.style.display = 'flex';
+    updateCounters(0, 0);
+    updateNavButtons();
+    return;
+  }
+
+  state.current = Math.max(0, Math.min(state.slides.length - 1, idx));
+  const img = document.getElementById('slideImg');
+  img.src = state.slides[state.current];
+
+  wrapper.classList.add('visible');
+  empty.style.display = 'none';
+
+  setTimeout(resizeCanvas, 50);
+  updateCounters(state.current + 1, state.slides.length);
+  updateNavButtons();
+  renderSlideList();
+
+  // Limpa canvas ao trocar slide
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function updateCounters(cur, total) {
+  const t = `${cur} / ${total}`;
+  document.getElementById('topCounter').textContent = t;
+  document.getElementById('bottomCounter').textContent = t;
+}
+
+function updateNavButtons() {
+  document.getElementById('btnPrev').disabled = state.current <= 0 || !state.slides.length;
+  document.getElementById('btnNext').disabled = state.current >= state.slides.length - 1 || !state.slides.length;
+}
+
+// ── Navegação ─────────────────────────────────
+function goSlide(i) { showSlide(i); }
+function nextSlide() { if (state.current < state.slides.length - 1) showSlide(state.current + 1); }
+function prevSlide() { if (state.current > 0) showSlide(state.current - 1); }
+
+// ── Modos ─────────────────────────────────────
+function toggleMode(mode) {
+  if (mode === 'draw') applyMode('draw', !state.drawMode);
+  if (mode === 'laser') applyMode('laser', !state.laserMode);
+}
+
+function applyMode(mode, on) {
+  if (mode === 'draw') {
+    state.drawMode = on;
+    if (on) { state.laserMode = false; applyMode('laser', false); }
+    document.getElementById('btnDraw').classList.toggle('active', on);
+    document.getElementById('ctrlDraw').classList.toggle('active', on);
+  }
+  if (mode === 'laser') {
+    state.laserMode = on;
+    if (on) { state.drawMode = false; applyMode('draw', false); }
+    document.getElementById('btnLaser').classList.toggle('active', on);
+    document.getElementById('ctrlLaser').classList.toggle('active', on);
+    document.getElementById('laserDot').style.display = on ? 'block' : 'none';
+  }
+  const badge = document.getElementById('modeBadge');
+  if (state.drawMode) { badge.className = 'mode-badge draw'; badge.textContent = '✏️ Desenhando'; }
+  else if (state.laserMode) { badge.className = 'mode-badge laser'; badge.textContent = '🔴 Laser'; }
+  else { badge.className = 'mode-badge'; }
+}
+
+// ── Canvas manual (mouse) ─────────────────────
+canvas.style.pointerEvents = 'auto';
+let isDrawingMouse = false;
+
+canvas.addEventListener('mousedown', (e) => {
+  if (!state.drawMode) return;
+  isDrawingMouse = true;
+  ctx.beginPath();
+  const {x, y} = getPos(e);
+  ctx.moveTo(x, y);
+});
+canvas.addEventListener('mousemove', (e) => {
+  const {x, y} = getPos(e);
+  if (state.laserMode) moveLaser(x / canvas.width, y / canvas.height);
+  if (!state.drawMode || !isDrawingMouse) return;
+  ctx.lineTo(x, y);
+  ctx.stroke();
+});
+canvas.addEventListener('mouseup', () => { isDrawingMouse = false; });
+canvas.addEventListener('mouseleave', () => { isDrawingMouse = false; });
+
+function getPos(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+
+// ── Laser ─────────────────────────────────────
+function moveLaser(nx, ny) {
+  if (!state.laserMode) return;
+  const wrapper = document.getElementById('slideWrapper');
+  const dot = document.getElementById('laserDot');
+  dot.style.left = (nx * wrapper.offsetWidth) + 'px';
+  dot.style.top  = (ny * wrapper.offsetHeight) + 'px';
+}
+
+// ── Canvas utils ──────────────────────────────
+function clearCanvas() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+// ── Webcam ────────────────────────────────────
+async function startCam() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    const vid = document.getElementById('camPreview');
+    vid.srcObject = stream;
+    vid.style.display = 'block';
+    setDot('dotCam', 'on', 'Webcam ativa');
+  } catch (err) {
+    alert('Não foi possível acessar a webcam: ' + err.message);
+  }
+}
+
+// ── UI helpers ────────────────────────────────
+function flashGesture(txt) {
+  const pill = document.getElementById('gesturePill');
+  pill.textContent = txt;
+  pill.classList.add('flash');
+  setTimeout(() => {
+    pill.textContent = 'Aguardando gesto...';
+    pill.classList.remove('flash');
+  }, 1600);
+}
+
+function setDot(id, cls, label) {
+  const dot = document.getElementById(id);
+  dot.className = 'dot' + (cls ? ' ' + cls : '');
+  const labelMap = { dotSocket: 'lblSocket', dotCam: 'lblCam', dotPython: 'lblPython' };
+  document.getElementById(labelMap[id]).textContent = label;
+}
+</script>
+</body>
+</html>
